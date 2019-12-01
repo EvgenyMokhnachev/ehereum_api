@@ -30,5 +30,5 @@ services:
     ports:
       - ${PORT}:${PORT}
     command: npm run dev
-    links:
-      - geth
+#    links:
+#      - geth
