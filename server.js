@@ -40,53 +40,56 @@ app.post('/getTransactions', async (req, res) => {
         const startBlock = parseInt(req.body.startBlock);
         const endBlock = parseInt(req.body.endBlock);
 
-        const transactions = [];
+        const blocks = {};
         for (let blockNumber = startBlock; blockNumber <= endBlock; blockNumber++) {
             const block = await getBlock(blockNumber);
-            const blockTransactions = block && block.transactions ? block.transactions : [];
-            for (let txI = 0; txI < blockTransactions.length; txI++) {
-                const transaction = blockTransactions[txI];
+            if (block) {
+                blocks[block.number] = [];
+                const blockTransactions = block && block.transactions ? block.transactions : [];
+                for (let txI = 0; txI < blockTransactions.length; txI++) {
+                    const transaction = blockTransactions[txI];
 
-                let to = transaction.to;
-                let value = transaction.value;
+                    let to = transaction.to;
+                    let value = transaction.value;
 
-                const contractHash = to ? to.toLowerCase() === '0x0845b0058b8d41025c7a3466952864e872a4cd08'.toLowerCase() ? to.toLowerCase() : null : null;
-                const contractAbi = contractHash ? abi[contractHash.toLowerCase()] : null;
+                    const contractHash = to ? to.toLowerCase() === '0x0845b0058b8d41025c7a3466952864e872a4cd08'.toLowerCase() ? to.toLowerCase() : null : null;
+                    const contractAbi = contractHash ? abi[contractHash.toLowerCase()] : null;
 
-                if (contractHash && contractAbi) {
-                    const web3js = new web3(new web3.providers.HttpProvider(process.env.ETHEREUM_JSON_RPC_URL));
-                    abiDecoder.addABI(contractAbi);
-                    const decodedData = abiDecoder.decodeMethod(transaction.input);
-                    abiDecoder.removeABI(contractAbi);
-                    decodedData.params.map(param => {
-                        if (decodedData.name === 'transfer')
-                            if (param.name === '_to') {
-                                to = param.value;
+                    if (contractHash && contractAbi) {
+                        const web3js = new web3(new web3.providers.HttpProvider(process.env.ETHEREUM_JSON_RPC_URL));
+                        abiDecoder.addABI(contractAbi);
+                        const decodedData = abiDecoder.decodeMethod(transaction.input);
+                        abiDecoder.removeABI(contractAbi);
+                        decodedData.params.map(param => {
+                            if (decodedData.name === 'transfer')
+                                if (param.name === '_to') {
+                                    to = param.value;
+                                }
+
+                            if (param.name === '_value') {
+                                value = param.value;
                             }
+                        });
+                    }
 
-                        if (param.name === '_value') {
-                            value = param.value;
-                        }
-                    });
+                    const transactionResult = new TransactionDTO(
+                        transaction.blockNumber,
+                        block.timestamp,
+                        transaction.hash,
+                        true,
+                        contractHash,
+                        transaction.from,
+                        to,
+                        transaction.gas,
+                        transaction.gasPrice,
+                        value
+                    );
+                    blocks[block.number].push(transactionResult);
                 }
-
-                const transactionResult = new TransactionDTO(
-                    transaction.blockNumber,
-                    block.timestamp,
-                    transaction.hash,
-                    true,
-                    contractHash,
-                    transaction.from,
-                    to,
-                    transaction.gas,
-                    transaction.gasPrice,
-                    value
-                );
-                transactions.push(transactionResult);
             }
         }
 
-        res.json(transactions);
+        res.json(blocks);
     } catch (e) {
         console.error(e);
         res.status(500).json(e.message);
