@@ -14,7 +14,7 @@ services:
     env_file:
       - ./../.env
     volumes:
-      - ./ethereum:/root/.ethereum
+      -  /mnt/volume_sgp1_01:/root/.ethereum
     command: --rpc --rpcport 8545 --rpcaddr 0.0.0.0 --rpcapi eth,web3 --rpcvhosts '*' --syncmode full
 
   nodejs:
