@@ -101,49 +101,53 @@ app.post('/getTransaction', async (req, res) => {
         const transaction = await getTransaction(req.body.hash);
         const transactionReceipt = await getTransactionReceipt(req.body.hash);
 
-        const gas = transactionReceipt ? transactionReceipt.gasUsed : transaction.gas;
-        const contractHash = transaction.to.toLowerCase() === '0x0845b0058b8d41025c7a3466952864e872a4cd08'.toLowerCase() ? transaction.to.toLowerCase() : null;
-        const contractAbi = contractHash ? abi[contractHash.toLowerCase()] : null;
-        let to = transaction.to;
-        let value = transaction.value;
-        let timestamp = null;
+        if (transaction) {
+            const gas = transactionReceipt ? transactionReceipt.gasUsed : transaction.gas;
+            const contractHash = transaction.to.toLowerCase() === '0x0845b0058b8d41025c7a3466952864e872a4cd08'.toLowerCase() ? transaction.to.toLowerCase() : null;
+            const contractAbi = contractHash ? abi[contractHash.toLowerCase()] : null;
+            let to = transaction.to;
+            let value = transaction.value;
+            let timestamp = null;
 
-        if (contractHash && contractAbi) {
-            const web3js = new web3(new web3.providers.HttpProvider(process.env.ETHEREUM_JSON_RPC_URL));
-            abiDecoder.addABI(contractAbi);
-            const decodedData = abiDecoder.decodeMethod(transaction.input);
-            abiDecoder.removeABI(contractAbi);
-            decodedData.params.map(param => {
-                if (decodedData.name === 'transfer')
-                    if (param.name === '_to') {
-                        to = param.value;
+            if (contractHash && contractAbi) {
+                const web3js = new web3(new web3.providers.HttpProvider(process.env.ETHEREUM_JSON_RPC_URL));
+                abiDecoder.addABI(contractAbi);
+                const decodedData = abiDecoder.decodeMethod(transaction.input);
+                abiDecoder.removeABI(contractAbi);
+                decodedData.params.map(param => {
+                    if (decodedData.name === 'transfer')
+                        if (param.name === '_to') {
+                            to = param.value;
+                        }
+
+                    if (param.name === '_value') {
+                        value = param.value;
                     }
+                });
+            }
 
-                if (param.name === '_value') {
-                    value = param.value;
-                }
-            });
+            if (transaction.blockNumber) {
+                const block = await getBlock(transaction.blockNumber);
+                timestamp = block.timestamp;
+            }
+
+            const transactionResult = new TransactionDTO(
+                transaction.blockNumber,
+                timestamp,
+                transaction.hash,
+                transactionReceipt ? transactionReceipt.status : null,
+                contractHash,
+                transaction.from,
+                to,
+                gas,
+                transaction.gasPrice,
+                value
+            );
+
+            res.json(transactionResult);
+        } else {
+            res.sendStatus(404);
         }
-
-        if (transaction.blockNumber) {
-            const block = await getBlock(transaction.blockNumber);
-            timestamp = block.timestamp;
-        }
-
-        const transactionResult = new TransactionDTO(
-            transaction.blockNumber,
-            timestamp,
-            transaction.hash,
-            transactionReceipt ? transactionReceipt.status : null,
-            contractHash,
-            transaction.from,
-            to,
-            gas,
-            transaction.gasPrice,
-            value
-        );
-
-        res.json(transactionResult);
     } catch (e) {
         res.status(500).json(e.message);
     }
