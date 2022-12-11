@@ -9,7 +9,7 @@
         "body-parser": "latest",
         "dotenv": "^8.2.0",
         "ethereumjs-tx": "2.1.1",
-        "express": "^4.17.1",
+        "express": "^4.17.3",
         "web3": "1.2.4"
     }
 }
